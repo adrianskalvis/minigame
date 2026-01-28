@@ -16,15 +16,16 @@ let gameState = {
 
 const stories = {
     1: [
-        "Ikdienā suņuks spēj iemācīties apsēsties, kad pasaki Sēdi!, un apgulties, kad pasaki Guli!. Tās ir komandas.",
+        "Ikdienā suņuks spēj iemācīties apsēsties, kad pasaki Sēdi! Kā arī apgulties, kad pasaki Guli! Tās ir komandas.",
         "Vai zināji, ka arī tagad TU vari turpināt uzdot komandas datoram? To sauc par programmēšanu! 🙂",
         "Bet labi, Mēs esam nonākuši CodeQuest pasaulītē! Un Mūsu mērķis ir izglābt princesi, turpmāk Tev burvis palīdzēs ar komandām, veiksmi!",
-        "BURVIS: Sveiks cilvēk! Raksti uzPriekšu(); lai dotos uz ziemeļiem. Neaizmirsti semikolu ';' beigās!"
+        "P.S. Rakstot kodu, par garumzīmēm neuztraucies, jo pārsvarā programmēšanas kods tiek rakstīts angļu valodā!",
+        "BURVIS: Sveiks cilvēk! Raksti iet(); lai dotos uz ziemeļiem. Atkārto komandu tik reizes, lai nokļūtu pie manis. Neaizmirsti semikolu ';' beigās!"
     ],
     2: [
         "Lieliski! Programmēšana ir precīzu instrukciju došana.",
-        "BURVIS: Lieto paKreisi(); paLabi(); un uzLeju(); lai atrastu rīkus.",
-        "BURVIS: Izmanto ņemt(); kad stāvi uz priekšmeta!"
+        "BURVIS: Lieto paKreisi(); paLabi(); un ietAtpakal(); lai atrastu rīkus.",
+        "BURVIS: Izmanto nemt(); kad esi veiksmīgi nonācis pie kāda priekšmeta!"
     ],
     3: [
         "Sargies! Gariņš sargā ceļu un viņš nav draudzīgi noskaņots.",
@@ -34,8 +35,8 @@ const stories = {
 };
 
 const levels = {
-    1: { goal: {x: 4, y: 1, s: "🧙‍♂️"}, start: {x: 4, y: 8}, items: [], mobs: [], vines: [], placeholder: "uzPriekšu();" },
-    2: { goal: {x: 4, y: 1, s: "🏰"}, start: {x: 4, y: 8}, items: [{x:2, y:4, s:"🗡️"}, {x:6, y:4, s:"❤️"}], mobs: [], vines: [], placeholder: "uzPriekšu();" },
+    1: { goal: {x: 4, y: 1, s: "🧙‍♂️"}, start: {x: 4, y: 8}, items: [], mobs: [], vines: [], placeholder: "iet();" },
+    2: { goal: {x: 4, y: 1, s: "🏰"}, start: {x: 4, y: 8}, items: [{x:2, y:4, s:"🗡️"}, {x:6, y:4, s:"❤️"}], mobs: [], vines: [], placeholder: "iet();" },
     3: { goal: {x: 4, y: 1, s: "👸"}, start: {x: 4, y: 8}, mobs: [{x:4, y:4, s: "👻"}], vines: [{x:0, y:4, s:"🌿"}, {x:1, y:4, s:"🌿"}, {x:2, y:4, s:"🌿"}, {x:3, y:4, s:"🌿"}, {x:5, y:4, s:"🌿"}, {x:6, y:4, s:"🌿"}, {x:7, y:4, s:"🌿"}, {x:8, y:4, s:"🌿"}], placeholder: "zobens();" }
 };
 
@@ -130,37 +131,41 @@ async function runScript() {
         const cmd = rawLine.replace(";", "").toLowerCase();
         let nX = gameState.player.x, nY = gameState.player.y;
 
-        if (cmd === "uzpriekšu()") nY--;
-        else if (cmd === "uzleju()") nY++;
-        else if (cmd === "pakreisi()") nX--;
-        else if (cmd === "palabi()") nX++;
-        else if (cmd === "ņemt()") {
+        let isMove = false;
+        if (cmd === "iet()") { nY--; isMove = true; }
+        else if (cmd === "ietatpakal()") { nY++; isMove = true; }
+        else if (cmd === "pakreisi()") { nX--; isMove = true; }
+        else if (cmd === "palabi()") { nX++; isMove = true; }
+        else if (cmd === "nemt()" || cmd === "panemt()") {
             const idx = gameState.items.findIndex(it => it.x === gameState.player.x && it.y === gameState.player.y);
             if (idx !== -1) { gameState.inventory.push(gameState.items[idx]); gameState.items.splice(idx, 1); }
         }
         else if (cmd === "zobens()") {
             const ghost = gameState.mobs[0];
-            const nearbyVines = gameState.vines.filter(v => Math.abs(v.x-gameState.player.x)<=1 && Math.abs(v.y-gameState.player.y)<=1);
-            // Ernest help
-            const dangerousAction = nearbyVines.some(v => ghost && Math.abs(v.x-ghost.x) < 1.1 && Math.abs(v.y-ghost.y) < 1.1);
+            // Pārbaude: vai lieto zobenu 1 bloka attālumā no gariņa
+            const distToGhost = ghost ? Math.sqrt(Math.pow(gameState.player.x - ghost.x, 2) + Math.pow(gameState.player.y - ghost.y, 2)) : 100;
 
-            if (dangerousAction) {
+            if (distToGhost < 1.5) {
                 gameState.isRunning = false;
-                showModal("KĻŪDA", "Gariņš tevi noķēra! Nocirti liānas par tuvu viņam.", "MĒĢINĀT", () => { modal.style.display="none"; resetPlayer(); });
+                showModal("KĻŪDA", "Gariņš tevi piebeidza duelī!", "MĒĢINĀT", () => { modal.style.display="none"; resetPlayer(); });
                 return;
             }
             gameState.vines = gameState.vines.filter(v => Math.abs(v.x-gameState.player.x)>1 || Math.abs(v.y-gameState.player.y)>1);
         }
 
+        // Sadursme ar gariņu
+        const ghost = gameState.mobs[0];
+        if (ghost && nX === ghost.x && nY === ghost.y) {
+            gameState.isRunning = false;
+            showModal("KĻŪDA", "Gariņš tevi noķēra!", "MĒĢINĀT", () => { modal.style.display="none"; resetPlayer(); });
+            return;
+        }
+
+        // Liānu siena (nevar iziet cauri)
         let hit = gameState.vines.find(v => v.x === nX && v.y === nY);
-        if (hit) {
-            let ghost = gameState.mobs[0];
-            if (ghost && Math.abs(hit.x - ghost.x) < 1.1) {
-                gameState.isRunning = false;
-                showModal("AIZLIEGTS", "Tu iepinies liānās pie gariņa!", "MĒĢINĀT", () => { modal.style.display="none"; resetPlayer(); });
-                return;
-            }
-            gameState.vines = gameState.vines.filter(v => v !== hit);
+        if (hit && isMove) {
+            nX = gameState.player.x;
+            nY = gameState.player.y;
         }
 
         if (nX >= 0 && nX < COLS) gameState.player.x = nX;
@@ -179,12 +184,17 @@ function checkLogic() {
     if (gameState.player.x === gameState.goal.x && gameState.player.y === gameState.goal.y) {
         if (gameState.lvl === 2 && gameState.inventory.length < 2) {
             gameState.isRunning = false;
-            typeWriter("BURVIS: Tev vajag gan sirdi, gan zobenu! Lieto ņemt();", true);
+            typeWriter("BURVIS: Tev vajag gan sirdi, gan zobenu! Kad tos atrodi, lieto nemt();", true);
             return;
         }
         gameState.isRunning = false;
-        if (gameState.lvl < 3) showModal("APSVEICAMI", "Līmenis pabeigts!", "NĀKAMAIS", () => initLevel(gameState.lvl + 1));
-        else showModal("UZVARA", "Tu kļuvi par koda meistaru!", "SĀKT NO JAUNA", () => initLevel(1));
+        if (gameState.lvl < 3) {
+            showModal("APSVEICAMI", "Līmenis pabeigts!", "NĀKAMAIS", () => initLevel(gameState.lvl + 1));
+        } else {
+            showModal("Lieliski!", "Tu izglābi princesi, pielietojot loģiku un programmēšanu!", "TĀLĀK", () => {
+                showModal("UZVARA", "Tu kļuvi par koda meistaru!", "SĀKT NO JAUNA", () => initLevel(1));
+            });
+        }
     }
 }
 
