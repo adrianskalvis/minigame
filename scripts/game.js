@@ -6,6 +6,11 @@ const backBtn = document.getElementById("back-diag-btn");
 const hintBox = document.getElementById("pickup-hint");
 const editor = document.getElementById("codeEditor");
 const modal = document.getElementById("modal-overlay");
+const introOverlay = document.getElementById("intro-overlay");
+const loadingMsg = document.getElementById("loading-msg");
+const introContent = document.getElementById("intro-content");
+const introTextLines = document.getElementById("intro-text-lines");
+const introBtn = document.getElementById("intro-next-btn");
 
 const COLS = 9, ROWS = 10;
 
@@ -13,20 +18,93 @@ let resourcesLoaded = false;
 let loadedCount = 0;
 const totalImages = Object.keys(sources).length;
 
+const introSequence = [
+    {
+        lines: ["<span class='intro-big-bold'>Laipni Lūgti CodeQuest!</span>", "Vai esi gatavs/-a piedzīvojumiem?"],
+        wait: 3
+    },
+    {
+        lines: ["<span class='intro-big-bold'>Šī būs super vienkārša spēle, kas Tev parādīs nelielu ieskatu programmēšanā,</span>", "<span class='intro-bold'>Tas ir:</span> prast dot komandas, lai sasniegtu kādu vēlamo rezultātu"],
+        wait: 6
+    },
+    {
+        lines: ["<span class='intro-big-bold'>Orientēties ir super vienkārši:</span>", "Skaties uz dialoga lodziņu, kur parādīsies teksts ar norādēm", "Droši spied <span class='code-box'>'tālāk >'</span> vai <span class='code-box'>'< atpakaļ'</span> lai pārskatītu uzdotās komandas!"],
+        wait: 6
+    },
+    {
+        lines: ["<span class='intro-bold'>Pielieto dotās komandas</span> rakstot tās lodziņā apakšā dialogam, un spied <span class='code-box'>'palaist'</span>, lai iedarbinātu programmu jeb tavu cilvēciņu!", "<span class=intro-bold>Lai izdodas!</span>"],
+        wait: 4,
+        final: "Ienākt pasaulē!"
+    }
+];
+
+let currentIntroIdx = 0;
+
 function imgLoad() {
+    gameState.mode = "loading";
+    loadingMsg.style.display = "block";
+
     for (let key in sources) {
         images[key] = new Image();
         images[key].src = sources[key];
         images[key].onload = () => {
             loadedCount++;
-            if (loadedCount === totalImages) {
-                resourcesLoaded = true;
-                startAnimationLoop();
-            }
+            checkLoad();
         };
-        images[key].onerror = () => {
-            console.log("Image load failed: " + key);
-        };
+        images[key].onerror = () => { console.log("Image load failed: " + key); };
+    }
+
+    setTimeout(() => {
+        gameState.minLoadDone = true;
+        checkLoad();
+    }, 1500);
+}
+
+function checkLoad() {
+    if (loadedCount === totalImages && gameState.minLoadDone) {
+        resourcesLoaded = true;
+        startAnimationLoop();
+        startIntro();
+    }
+}
+
+function startIntro() {
+    gameState.mode = "intro";
+    loadingMsg.style.display = "none";
+    introContent.style.display = "flex";
+    renderIntroStep();
+}
+
+function renderIntroStep() {
+    const step = introSequence[currentIntroIdx];
+    introTextLines.innerHTML = step.lines.map(l => `<p>${l}</p>`).join("");
+
+    let timer = step.wait;
+    introBtn.className = "";
+    introBtn.onclick = null;
+    introBtn.innerText = timer;
+
+    const cd = setInterval(() => {
+        timer--;
+        if(timer > 0) {
+            introBtn.innerText = timer;
+        } else {
+            clearInterval(cd);
+            introBtn.className = "active";
+            introBtn.innerText = step.final ? step.final : "tālāk >";
+            introBtn.onclick = nextIntroStep;
+        }
+    }, 1000);
+}
+
+function nextIntroStep() {
+    currentIntroIdx++;
+    if (currentIntroIdx < introSequence.length) {
+        renderIntroStep();
+    } else {
+        introOverlay.style.display = "none";
+        gameState.mode = "game";
+        resize();
     }
 }
 
@@ -117,6 +195,26 @@ function startAnimationLoop() {
 
 function draw() {
     if (!canvas.width || !canvas.height) return;
+
+    if (gameState.mode === "loading") {
+        ctx.fillStyle = "#2d2d2d";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const t = Math.min(canvas.width / COLS, canvas.height / ROWS);
+        const offX = (canvas.width - t * COLS) / 2;
+        const offY = (canvas.height - t * ROWS) / 2;
+        ctx.save();
+        ctx.translate(offX, offY);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= COLS; x++) {
+            ctx.beginPath(); ctx.moveTo(x * t, 0); ctx.lineTo(x * t, ROWS * t); ctx.stroke();
+        }
+        for (let y = 0; y <= ROWS; y++) {
+            ctx.beginPath(); ctx.moveTo(0, y * t); ctx.lineTo(COLS * t, y * t); ctx.stroke();
+        }
+        ctx.restore();
+        return;
+    }
 
     ctx.fillStyle = "#1a1a1a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -281,8 +379,14 @@ function typeWriter(text, animate) {
     updateButtons();
     let i = 0;
     gameState.typeInterval = setInterval(() => {
-        diagBox.innerHTML += text.charAt(i);
-        i++;
+        if (text.charAt(i) === "<") {
+            let tagEnd = text.indexOf(">", i);
+            diagBox.innerHTML += text.substring(i, tagEnd + 1);
+            i = tagEnd + 1;
+        } else {
+            diagBox.innerHTML += text.charAt(i);
+            i++;
+        }
         if (i >= text.length) {
             clearInterval(gameState.typeInterval);
             gameState.isTyping = false;

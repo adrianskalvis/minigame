@@ -47,6 +47,16 @@ canvas {
     display: block;
 }
 
+.code-box {
+    background: #2a2d3e;
+    border: 1px solid #444;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+    font-size: 0.9em;
+}
+
 #ui-layer {
     flex-basis: 42%;
     min-height: 320px;
@@ -167,45 +177,131 @@ button.game-btn:active {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.9);
+    z-index: 1000;
     display: none;
     justify-content: center;
     align-items: center;
-    z-index: 100;
 }
 
 #modal-box {
     background: var(--panel);
-    border: 2px solid #fff;
-    outline: 1px solid #555;
-    outline-offset: -6px;
-    padding: 30px;
-    border-radius: 0;
+    border: 2px solid var(--border);
+    padding: 20px;
+    width: 80%;
+    max-width: 300px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+#modal-title { color: var(--zelda-gold); font-weight: bold; font-size: 1.2rem; }
+#modal-msg { color: white; font-size: 0.9rem; line-height: 1.4; }
+
+#intro-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--panel);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: 4px double var(--zelda-gold);
+}
+
+#loading-msg {
+    color: white;
+    font-family: 'Garamond', serif;
+    font-size: 1.2rem;
+    display: none;
+}
+
+#intro-content {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
     width: 85%;
     text-align: center;
 }
 
-#modal-title {
-    color: var(--zelda-gold);
-    font-size: 1.5rem;
-    margin-bottom: 15px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
+#intro-text-lines {
+    color: white;
+    font-family: 'Garamond', serif;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    border-top: 1px solid var(--zelda-gold);
+    border-bottom: 1px solid var(--zelda-gold);
+    padding: 20px 0;
+    width: 100%;
 }
 
-#modal-msg { color: white; margin-bottom: 25px; font-size: 1.1rem; line-height: 1.4; }
-#modal-primary-btn { background: var(--accent-glow); width: 100%; color: #000; }
+#intro-text-lines p { margin: 10px 0; }
+
+#intro-next-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: transparent;
+    border: 2px solid #666;
+    color: #888;
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+#intro-next-btn.active {
+    width: auto;
+    height: auto;
+    border-radius: 4px;
+    padding: 10px 20px;
+    background: white;
+    border-color: white;
+    color: black;
+    font-size: 1rem;
+    cursor: pointer;
+}
 
 #pickup-hint {
     position: absolute;
-    left: 10px;
-    top: -60px;
-    background: #fff;
-    border: 2px solid #000;
-    color: #000;
-    padding: 5px 10px;
-    font-size: 0.8rem;
-    font-weight: bold;
     display: none;
-    box-shadow: 4px 4px 0 rgba(0,0,0,0.3);
-    z-index: 11;
+    color: black;
+    background: white;
+    padding: 4px 8px;
+    border-radius: 2px;
+    border: 1px solid black;
+    font-size: 12px;
+    animation: float 1s infinite alternate;
+    z-index: 100;
+    left: 20%;
+    transform: translateX(-50%);
+    bottom: 500px;
+    pointer-events: none;
 }
+
+.intro-big-bold {
+    font-size: 1.2rem;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.intro-bold {
+    font-weight: bold;
+}
+
+#intro-link {
+    top: -40px;
+    right: 10px;
+    width: 100px;
+    height: auto;
+    z-index: 2001;
+}
+
+@keyframes float { from { margin-bottom: 0; } to { margin-bottom: 5px; } }
