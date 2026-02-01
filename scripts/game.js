@@ -9,51 +9,90 @@ const modal = document.getElementById("modal-overlay");
 
 const COLS = 9, ROWS = 10;
 
-let gameState = {
-    lvl: 1, player: { x: 4, y: 8 }, startPos: { x: 4, y: 8 }, goal: { x: 4, y: 1 },
-    items: [], inventory: [], mobs: [], vines: [], isRunning: false, diagIdx: -1,
-    isTyping: false, typeInterval: null
-};
+let resourcesLoaded = false;
+let loadedCount = 0;
+const totalImages = Object.keys(sources).length;
 
-const stories = {
-    1: [
-        "Ikdienā suņuks spēj iemācīties apsēsties, kad pasaki Sēdi! Kā arī apgulties, kad pasaki Guli! Tās ir komandas.",
-        "Vai zināji, ka arī tagad TU vari turpināt uzdot komandas datoram? To sauc par programmēšanu! 🙂",
-        "Bet labi, Mēs esam CodeQuest pasaulē! Mūsu mērķis ir izglābt princesi. Burvis Tev palīdzēs!",
-        "P.S. Rakstot kodu, par garumzīmēm neuztraucies, jo pārsvarā programmēšanas kods tiek rakstīts angļu valodā!",
-        "BURVIS: Sveiks! Raksti iet(); lai dotos uz priekšu. Neaizmirsti semikolu ';' beigās!"
-    ],
-    2: [
-        "Lieliski! Programmēšana ir precīzu instrukciju došana.",
-        "BURVIS: Lieto paKreisi(); paLabi(); un ietAtpakal(); lai atrastu rīkus.",
-        "BURVIS: Izmanto nemt(); kad esi veiksmīgi nonācis pie kāda priekšmeta!"
-    ],
-    3: [
-        "Sargies! Gariņš sargā ceļu.",
-        "BURVIS: Liānas, kas ir tieši blakus gariņam, ir bīstamas! Ja tās aiztiksi, viņš tevi noķers.",
-        "BURVIS: Izmanto zobens(); tikai tām liānām, kas nav gariņa kaimiņos!"
-    ]
-};
+function imgLoad() {
+    for (let key in sources) {
+        images[key] = new Image();
+        images[key].src = sources[key];
+        images[key].onload = () => {
+            loadedCount++;
+            if (loadedCount === totalImages) {
+                resourcesLoaded = true;
+                startAnimationLoop();
+            }
+        };
+        images[key].onerror = () => {
+            console.log("Image load failed: " + key);
+        };
+    }
+}
 
-const levels = {
-    1: { goal: {x: 4, y: 1, s: "🧙‍♂️"}, start: {x: 4, y: 8}, items: [], mobs: [], vines: [], placeholder: "iet();" },
-    2: { goal: {x: 4, y: 1, s: "🏰"}, start: {x: 4, y: 8}, items: [{x:2, y:4, s:"🗡️"}, {x:6, y:4, s:"❤️"}], mobs: [], vines: [], placeholder: "iet();" },
-    3: { goal: {x: 4, y: 1, s: "👸"}, start: {x: 4, y: 8}, mobs: [{x:4, y:4, s: "👻"}], vines: [{x:0, y:4, s:"🌿"}, {x:1, y:4, s:"🌿"}, {x:2, y:4, s:"🌿"}, {x:3, y:4, s:"🌿"}, {x:5, y:4, s:"🌿"}, {x:6, y:4, s:"🌿"}, {x:7, y:4, s:"🌿"}, {x:8, y:4, s:"🌿"}], placeholder: "zobens();" }
-};
+function triggerFailSequence(msg) {
+    if (gameState.lvl === 3) {
+        draw();
+        const flashOverlay = document.createElement("div");
+        flashOverlay.style = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:black;z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;";
+        const heartContainer = document.createElement("div");
+        heartContainer.style = "display:flex;gap:10px;margin-bottom:20px;";
+        const updateOverlayHearts = (types) => {
+            heartContainer.innerHTML = "";
+            types.forEach(type => {
+                const h = new Image();
+                h.src = sources[type];
+                h.style.width = "64px";
+                heartContainer.appendChild(h);
+            });
+        };
+        const errorText = document.createElement("h1");
+        errorText.innerText = "Ups!";
+        errorText.style = "color:white;font-family:Arial;margin-bottom:20px;";
+        flashOverlay.appendChild(errorText);
+        flashOverlay.appendChild(heartContainer);
+        document.body.appendChild(flashOverlay);
+        updateOverlayHearts(["hFull", "hFull", "hHalf"]);
+        let count = 0;
+        const blink = setInterval(() => {
+            if (count % 2 === 0) {
+                updateOverlayHearts(["hEmpty", "hEmpty", "hEmpty"]);
+            } else {
+                updateOverlayHearts(["hFull", "hFull", "hHalf"]);
+            }
+            count++;
+            if (count >= 7) {
+                clearInterval(blink);
+                updateOverlayHearts(["hEmpty", "hEmpty", "hEmpty"]);
+                setTimeout(() => {
+                    heartContainer.innerHTML = "<span style='font-size:100px;'>💔</span>";
+                    setTimeout(() => {
+                        document.body.removeChild(flashOverlay);
+                        showModal("Ups!", msg, "MĒĢINĀT VĒLREIZ", () => { modal.style.display="none"; resetPlayer(); });
+                    }, 1000);
+                }, 1000);
+            }
+        }, 200);
+    } else {
+        showModal("Ups!", msg, "MĒĢINĀT VĒLREIZ", () => { modal.style.display="none"; resetPlayer(); });
+    }
+}
 
 function initLevel(n) {
     modal.style.display = "none";
+    gameState.isRunning = false;
     gameState.lvl = n;
     gameState.diagIdx = -1;
-    gameState.player = { ...levels[n].start };
+    gameState.player = { ...levels[n].start, sprite: 101 };
     gameState.startPos = { ...levels[n].start };
     gameState.items = JSON.parse(JSON.stringify(levels[n].items || []));
     gameState.inventory = [];
-    gameState.mobs = levels[n].mobs || [];
+    gameState.hp = (n === 3) ? ["hFull", "hFull", "hHalf"] : ["hFull", "hHalf", "hEmpty"];
+    gameState.mobs = JSON.parse(JSON.stringify(levels[n].mobs || []));
     gameState.vines = JSON.parse(JSON.stringify(levels[n].vines || []));
     gameState.goal = levels[n].goal;
-    editor.value = "";
-    editor.placeholder = levels[n].placeholder;
+    gameState.currentMap = levels[n].map ? JSON.parse(JSON.stringify(levels[n].map)) : Array(10).fill(0).map(() => Array(9).fill(0));
+    editor.value = levels[n].placeholder;
     advanceDialogue(true);
     resize();
 }
@@ -68,14 +107,18 @@ function resize() {
     draw();
 }
 
-window.addEventListener('resize', () => setTimeout(resize, 100));
-editor.addEventListener('focus', () => setTimeout(resize, 300));
-editor.addEventListener('blur', () => setTimeout(resize, 300));
+function startAnimationLoop() {
+    function loop() {
+        draw();
+        requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+}
 
 function draw() {
     if (!canvas.width || !canvas.height) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#4a7c44";
+
+    ctx.fillStyle = "#1a1a1a";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const t = Math.min(canvas.width / COLS, canvas.height / ROWS);
@@ -84,24 +127,143 @@ function draw() {
 
     ctx.save();
     ctx.translate(offX, offY);
+    ctx.imageSmoothingEnabled = false;
 
-    ctx.strokeStyle = "rgba(255,255,255,0.1)";
-    for(let i=0; i<=COLS; i++) {
-        ctx.beginPath(); ctx.moveTo(i*t, 0); ctx.lineTo(i*t, ROWS*t); ctx.stroke();
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            let tileID = gameState.currentMap[y]?.[x] ?? 0;
+            if (!resourcesLoaded) continue;
+
+            let bgID = tileID;
+            if (gameState.lvl === 2) {
+                if (tileID > 8 || tileID < 6) bgID = 6;
+            } else if (gameState.lvl === 3) {
+                if (tileID !== 0) {
+                    const bg = TILE_TYPES[0];
+                    ctx.drawImage(images[bg.img], bg.sx, bg.sy, bg.sw, bg.sh, x * t, y * t, t + 1, t + 1);
+                }
+            } else {
+                if (tileID === 4 || tileID === 5 || tileID === 2) bgID = 0;
+            }
+
+            const base = TILE_TYPES[bgID];
+            if (base && images[base.img]) {
+                ctx.drawImage(images[base.img], base.sx, base.sy, base.sw, base.sh, x * t, y * t, t + 1, t + 1);
+            }
+
+            if (gameState.lvl === 1) {
+                const left = gameState.currentMap[y]?.[x - 1];
+                const right = gameState.currentMap[y]?.[x + 1];
+
+                if (tileID === 2) {
+                    const obj = TILE_TYPES[2];
+                    ctx.drawImage(images[obj.img], obj.sx, obj.sy, obj.sw, obj.sh, x * t, y * t, t + 1, t + 1);
+                }
+
+                if (tileID !== 3) {
+                    if (left === 3) ctx.drawImage(images.rocks, TILE_TYPES[32].sx, TILE_TYPES[32].sy, TILE_TYPES[32].sw, TILE_TYPES[32].sh, x * t, y * t, t / 2, t);
+                    if (right === 3) ctx.drawImage(images.rocks, TILE_TYPES[31].sx, TILE_TYPES[31].sy, TILE_TYPES[31].sw, TILE_TYPES[31].sh, x * t + t / 2, y * t, t / 2, t);
+                }
+
+                if (bgID === 0) {
+                    if (left === 2) ctx.drawImage(images.rocks, TILE_TYPES[22].sx, TILE_TYPES[22].sy, TILE_TYPES[22].sw, TILE_TYPES[22].sh, x * t, y * t, t / 2, t);
+                    if (right === 2) ctx.drawImage(images.rocks, TILE_TYPES[21].sx, TILE_TYPES[21].sy, TILE_TYPES[21].sw, TILE_TYPES[21].sh, x * t + t / 2, y * t, t / 2, t);
+                }
+            }
+
+            const layeredTiles = [18, 19, 20, 23, 24, 25, 26];
+            if (layeredTiles.includes(tileID)) {
+                if (tileID >= 24) {
+                    const water = TILE_TYPES[8];
+                    ctx.drawImage(images[water.img], water.sx, water.sy, water.sw, water.sh, x * t, y * t, t + 1, t + 1);
+                }
+                const patch = TILE_TYPES[tileID];
+                ctx.drawImage(images[patch.img], patch.sx, patch.sy, patch.sw, patch.sh, x * t, y * t, t + 1, t + 1);
+            }
+        }
     }
-    for(let j=0; j<=ROWS; j++) {
-        ctx.beginPath(); ctx.moveTo(0, j*t); ctx.lineTo(COLS*t, j*t); ctx.stroke();
+
+    ctx.strokeStyle = "rgba(200, 200, 200, 0.4)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= COLS; x++) {
+        ctx.beginPath(); ctx.moveTo(x * t, 0); ctx.lineTo(x * t, ROWS * t); ctx.stroke();
+    }
+    for (let y = 0; y <= ROWS; y++) {
+        ctx.beginPath(); ctx.moveTo(0, y * t); ctx.lineTo(COLS * t, y * t); ctx.stroke();
     }
 
-    ctx.font = `${t * 0.7}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            let tileID = gameState.currentMap[y]?.[x];
+            const obj = TILE_TYPES[tileID];
+            if (!obj) continue;
 
-    ctx.fillText(gameState.goal.s, gameState.goal.x * t + t/2, gameState.goal.y * t + t/2);
-    gameState.items.forEach(it => ctx.fillText(it.s, it.x * t + t/2, it.y * t + t/2));
-    gameState.vines.forEach(v => ctx.fillText(v.s, v.x * t + t/2, v.y * t + t/2));
-    gameState.mobs.forEach(m => ctx.fillText(m.s, m.x * t + t/2, m.y * t + t/2));
-    ctx.fillText("⚔️", gameState.player.x * t + t/2, gameState.player.y * t + t/2);
+            if (tileID === 4 || tileID === 5) {
+                ctx.drawImage(images[obj.img], obj.sx, obj.sy, obj.sw, obj.sh, x * t, (y - 0.5) * t, t * 2, t * 2);
+            } else if (tileID === 60) {
+                ctx.drawImage(images[obj.img], obj.sx, obj.sy, obj.sw, obj.sh, x * t, (y - 0.2) * t, t, t * 1.5);
+            } else if (tileID >= 11 && tileID <= 17) {
+                let w = t * 2, h = t * 2;
+                if (tileID === 13 || tileID === 17) { w = t; h = t; }
+                ctx.drawImage(images[obj.img], obj.sx, obj.sy, obj.sw, obj.sh, x * t - (w - t) / 2, y * t - (h - t), w, h);
+            }
+        }
+    }
+
+    const time = Date.now();
+
+    const goalType = TILE_TYPES[gameState.goal.s];
+    if (goalType && goalType.img && images[goalType.img]) {
+        const bob = (gameState.goal.s === "300") ? Math.sin(time / 400) * (t * 0.04) : (gameState.goal.s === "400") ? Math.sin(time / 200) * (t * 0.04) : 0;
+        ctx.drawImage(images[goalType.img], goalType.sx || 0, goalType.sy || 0, goalType.sw || images[goalType.img].width, goalType.sh || images[goalType.img].height, (gameState.goal.x * t) + (t * 0.15), (gameState.goal.y * t) + bob, t * 0.7, t);
+    } else {
+        ctx.font = `${t * 0.7}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(gameState.goal.s, gameState.goal.x * t + t/2, gameState.goal.y * t + t/2);
+    }
+
+    gameState.items.forEach(it => {
+        if (it.s === "hFull" && images.hFull) {
+            ctx.drawImage(images.hFull, it.x * t + t*0.2, it.y * t + t*0.2, t*0.6, t*0.6);
+        } else {
+            ctx.font = `${t * 0.6}px Arial`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(it.s, it.x * t + t/2, it.y * t + t/2);
+        }
+    });
+
+    gameState.vines.forEach(v => {
+        const vi = TILE_TYPES[v.s];
+        if (vi && images[vi.img]) {
+            ctx.drawImage(images[vi.img], vi.sx, vi.sy, vi.sw, vi.sh, v.x * t, v.y * t, t, t);
+        }
+    });
+
+    gameState.mobs.forEach(m => {
+        const mobType = TILE_TYPES[m.s];
+        if (mobType && images[mobType.img]) {
+            const bob = (m.s === "200") ? Math.sin(time / 150) * (t * 0.1) : 0;
+            ctx.drawImage(images[mobType.img], mobType.sx, mobType.sy, mobType.sw, mobType.sh, m.x * t, (m.y * t) + bob, t, t);
+        }
+    });
+
+    const pSprite = TILE_TYPES[gameState.player.sprite];
+    if(images.player && pSprite) {
+        const pBob = Math.sin(time / 200) * (t * 0.05);
+        ctx.drawImage(images.player, pSprite.sx, pSprite.sy, pSprite.sw, pSprite.sh, gameState.player.x * t, (gameState.player.y * t) + pBob, t, t);
+    }
+
+    const heartSize = t * 0.5;
+    const padding = 10;
+    gameState.hp.forEach((imgKey, index) => {
+        if(images[imgKey]) {
+            const hX = padding + index * (heartSize + 5);
+            const hY = (ROWS * t) - heartSize - padding;
+            ctx.drawImage(images[imgKey], hX, hY, heartSize, heartSize);
+        }
+    });
 
     ctx.restore();
 }
@@ -131,13 +293,8 @@ function typeWriter(text, animate) {
 
 function updateButtons() {
     const list = stories[gameState.lvl];
-    if (gameState.isTyping) {
-        nextBtn.style.visibility = "visible";
-        backBtn.style.visibility = "hidden";
-    } else {
-        nextBtn.style.visibility = gameState.diagIdx < list.length - 1 ? "visible" : "hidden";
-        backBtn.style.visibility = gameState.diagIdx > 0 ? "visible" : "hidden";
-    }
+    nextBtn.style.visibility = (gameState.isTyping || gameState.diagIdx < list.length - 1) ? "visible" : "hidden";
+    backBtn.style.visibility = (!gameState.isTyping && gameState.diagIdx > 0) ? "visible" : "hidden";
 }
 
 function advanceDialogue(animate = false) {
@@ -172,47 +329,66 @@ async function runScript() {
         if (!rawLine) continue;
         if (!rawLine.endsWith(";")) {
             gameState.isRunning = false;
-            showModal("Kļūda", "Pieliec semikolu ';' beigās!", "LABOT", () => { modal.style.display="none"; });
+            showModal("Ups!", "Vai pieliki beigās semikolu ';' ? :)", "LABOT", () => { modal.style.display="none"; });
             return;
         }
         const cmd = rawLine.replace(";", "").toLowerCase();
         let nX = gameState.player.x, nY = gameState.player.y;
+        let originalSprite = gameState.player.sprite;
+        let actionSprite = originalSprite;
 
-        let isMove = false;
-        if (cmd === "iet()") { nY--; isMove = true; }
-        else if (cmd === "ietatpakal()") { nY++; isMove = true; }
-        else if (cmd === "pakreisi()") { nX--; isMove = true; }
-        else if (cmd === "palabi()") { nX++; isMove = true; }
+        if (cmd === "iet()") { nY--; actionSprite = 101; }
+        else if (cmd === "ietatpakal()") { nY++; actionSprite = 100; }
+        else if (cmd === "pakreisi()") { nX--; actionSprite = 103; }
+        else if (cmd === "palabi()") { nX++; actionSprite = 102; }
         else if (cmd === "nemt()" || cmd === "panemt()") {
             const idx = gameState.items.findIndex(it => it.x === gameState.player.x && it.y === gameState.player.y);
-            if (idx !== -1) { gameState.inventory.push(gameState.items[idx]); gameState.items.splice(idx, 1); }
+            if (idx !== -1) {
+                const item = gameState.items[idx];
+                if (item.s === "hFull") gameState.hp = ["hFull", "hFull", "hHalf"];
+                gameState.inventory.push(item);
+                gameState.items.splice(idx, 1);
+            }
         }
         else if (cmd === "zobens()") {
             const ghost = gameState.mobs[0];
-            const distToGhost = ghost ? Math.sqrt(Math.pow(gameState.player.x - ghost.x, 2) + Math.pow(gameState.player.y - ghost.y, 2)) : 100;
-            if (distToGhost < 1.5) {
+            const dist = ghost ? Math.sqrt(Math.pow(gameState.player.x-ghost.x,2)+Math.pow(gameState.player.y-ghost.y,2)) : 100;
+            if (dist < 1.5) {
                 gameState.isRunning = false;
-                showModal("KĻŪDA", "Gariņš tevi piebeidza duelī!", "MĒĢINĀT", () => { modal.style.display="none"; resetPlayer(); });
+                triggerFailSequence("Gariņš tevi piebeidza duelī!");
                 return;
             }
             gameState.vines = gameState.vines.filter(v => Math.abs(v.x-gameState.player.x)>1 || Math.abs(v.y-gameState.player.y)>1);
         }
 
-        const ghost = gameState.mobs[0];
-        if (ghost && nX === ghost.x && nY === ghost.y) {
+        gameState.player.sprite = actionSprite;
+
+        if (nX >= 0 && nX < COLS && nY >= 0 && nY < ROWS) {
+            const tileID = gameState.currentMap[nY][nX];
+            if (TILE_TYPES[tileID] && TILE_TYPES[tileID].walk !== false) {
+                gameState.player.x = nX;
+                gameState.player.y = nY;
+            }
+        }
+
+        const hitMob = gameState.mobs.find(m => m.x === gameState.player.x && m.y === gameState.player.y);
+        if(hitMob) {
             gameState.isRunning = false;
-            showModal("KĻŪDA", "Gariņš tevi noķēra!", "MĒĢINĀT", () => { modal.style.display="none"; resetPlayer(); });
+            triggerFailSequence("Gariņš tevi noķēra!");
             return;
         }
 
-        let hit = gameState.vines.find(v => v.x === nX && v.y === nY);
-        if (hit && isMove) { nX = gameState.player.x; nY = gameState.player.y; }
+        const hitVine = gameState.vines.find(v => v.x === gameState.player.x && v.y === gameState.player.y);
+        if(hitVine) {
+            gameState.isRunning = false;
+            triggerFailSequence("Tu sapinies liānās!");
+            return;
+        }
 
-        if (nX >= 0 && nX < COLS) gameState.player.x = nX;
-        if (nY >= 0 && nY < ROWS) gameState.player.y = nY;
-
-        checkLogic(); draw();
+        checkLogic();
         await new Promise(r => setTimeout(r, 300));
+        if (!gameState.isRunning) break;
+        gameState.player.sprite = originalSprite;
     }
     gameState.isRunning = false;
 }
@@ -220,7 +396,6 @@ async function runScript() {
 function checkLogic() {
     const onItem = gameState.items.some(it => it.x === gameState.player.x && it.y === gameState.player.y);
     hintBox.style.display = onItem ? "block" : "none";
-
     if (gameState.player.x === gameState.goal.x && gameState.player.y === gameState.goal.y) {
         if (gameState.lvl === 2 && gameState.inventory.length < 2) {
             gameState.isRunning = false;
@@ -229,10 +404,10 @@ function checkLogic() {
         }
         gameState.isRunning = false;
         if (gameState.lvl < 3) {
-            showModal("APSVEICAMI", "Līmenis pabeigts!", "NĀKAMAIS", () => initLevel(gameState.lvl + 1));
+            showModal("Urrā!", "Līmenis pabeigts!", "Doties tālāk", () => initLevel(gameState.lvl + 1));
         } else {
-            showModal("Lieliski!", "Tu izglābi princesi!", "TĀLĀK", () => {
-                showModal("UZVARA", "Tu kļuvi par koda meistaru!", "SĀKT NO JAUNA", () => initLevel(1));
+            showModal("Lieliski!", "Tu izglābi princesi ar loģiku!", "TĀLĀK", () => {
+                showModal("UZVARA", "Tu kļuvi par koda meistaru un vari kļūt par programmētāju, apsveicam!", "SĀKT NO JAUNA", () => initLevel(1));
             });
         }
     }
@@ -247,11 +422,18 @@ function showModal(t, m, b, c) {
 }
 
 function resetPlayer() {
-    gameState.player = { ...gameState.startPos };
-    gameState.items = JSON.parse(JSON.stringify(levels[gameState.lvl].items || []));
-    gameState.vines = JSON.parse(JSON.stringify(levels[gameState.lvl].vines || []));
-    gameState.inventory = [];
-    draw();
+    gameState.isRunning = false;
+    setTimeout(() => {
+        gameState.player = { ...gameState.startPos, sprite: 101 };
+        gameState.items = JSON.parse(JSON.stringify(levels[gameState.lvl].items || []));
+        gameState.vines = JSON.parse(JSON.stringify(levels[gameState.lvl].vines || []));
+        gameState.mobs = JSON.parse(JSON.stringify(levels[gameState.lvl].mobs || []));
+        gameState.hp = (gameState.lvl === 3) ? ["hFull", "hFull", "hHalf"] : ["hFull", "hHalf", "hEmpty"];
+        gameState.inventory = [];
+        draw();
+    }, 10);
 }
 
+window.addEventListener('resize', () => setTimeout(resize, 100));
+imgLoad();
 initLevel(1);
